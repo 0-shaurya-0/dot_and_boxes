@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dots & Boxes</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #17171a;
+    --surface2: #1f1f24;
+    --border: #2e2e36;
+    --accent: #c8f04a;
+    --accent2: #4af0c8;
+    --human: #4af0c8;
+    --ai: #f04a7a;
+    --dot: #e0e0e0;
+    --line-idle: #2e2e36;
+    --line-hover: #c8f04a88;
+    --text: #e8e8e8;
+    --muted: #666;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; width: 100%; max-width: 560px; }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.4rem, 5vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  header p {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+
+  /* Score bar */
+  .scorebar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .score-block {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: background 0.2s;
+  }
+
+  .score-block.active { background: var(--surface2); }
+
+  .score-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .score-val {
+    font-family: var(--mono);
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .score-block:first-child .score-val { color: var(--human); }
+  .score-block:last-child  .score-val { color: var(--ai); }
+
+  .score-divider {
+    width: 1px;
+    height: 60px;
+    background: var(--border);
+  }
+
+  .turn-indicator {
+    flex: 0 0 auto;
+    padding: 0.5rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    min-width: 90px;
+  }
+
+  .turn-indicator span {
+    display: block;
+    font-size: 0.6rem;
+    margin-bottom: 3px;
+  }
+
+  .turn-indicator .turn-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  
+  /* Board */
+  .board-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  #board {
+    display: block;
+    width: 100%;
+    touch-action: none;
+    cursor: default;
+  }
+
+  /* Status bar */
+  .status {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    text-align: center;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    min-height: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .status.highlight { color: var(--accent); }
+
+  /* Buttons */
+  .actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .score-block.active {
+    background: var(--surface2);
+    box-shadow: 0 0 12px rgba(200,240,74,0.15);
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.6rem 1.4rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { border-color: var(--accent); color: var(--accent); }
+  button.primary:hover { background: var(--accent); color: #000; }
+
+  /* Game over overlay */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #0e0e10ee;
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .overlay.show { display: flex; }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    max-width: 300px;
+    width: 90%;
+    animation: pop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  @keyframes pop {
+    from { transform: scale(0.8); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+
+  @keyframes glow {
+    0%   { opacity: 0.6; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+
+  .result-card .emoji { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .result-card h2 {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+  .result-card p {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+  .result-card p strong { color: var(--text); }
+
+  .board-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 0 20px rgba(200,240,74,0.05);
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <h1>Dots &amp; Boxes</h1>
+    <p>Minimax AI &mdash; 3&times;3 grid</p>
+  </header>
+
+  <div style="text-align:center; margin-bottom:1.2rem;">
+  
+  <span style="
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  ">
+    Difficulty
+  </span>
+  
+  <br/>
+
+  <select id="difficulty" style="
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    margin-top: 4px;
+  ">
+    <option value="easy">Easy</option>
+    <option value="medium" selected>Medium</option>
+    <option value="hard">Hard</option>
+  </select>
+
+</div>
+
+  <div class="scorebar">
+    <div class="score-block active" id="block-h">
+      <div class="score-label">You</div>
+      <div class="score-val" id="score-h">0</div>
+    </div>
+    <div class="score-divider"></div>
+    <div class="turn-indicator" id="turn-block">
+      <span>turn</span>
+      <div class="turn-name" id="turn-name">You</div>
+    </div>
+    <div class="score-divider"></div>
+    <div class="score-block" id="block-a">
+      <div class="score-label">AI</div>
+      <div class="score-val" id="score-a">0</div>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board"></canvas>
+  </div>
+
+  <div class="status" id="status">Click a line to place it</div>
+
+  <div class="actions">
+    <button class="primary" onclick="resetGame()">New Game</button>
+    <button onclick="toggleHelp()">How to play</button>
+    <button id="hint-btn" onclick="getHint()">Hint (2)</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="result-card">
+    <div class="emoji" id="res-emoji">🎉</div>
+    <h2 id="res-title">Game Over</h2>
+    <p id="res-body"></p>
+    <button class="primary" onclick="resetGame(); closeOverlay()">Play Again</button>
+  </div>
+</div>
+
+<div class="overlay" id="help-overlay">
+  <div class="result-card">
+    <h2>How to Play 🎮</h2>
+    <p style="text-align:left">
+      • Click a line to draw it<br><br>
+      • Complete a box to score a point<br><br>
+      • If you score, you get another turn<br><br>
+      • Try to capture more boxes than the AI<br><br>
+      • Use hints wisely (only 2 per game)
+    </p>
+    <button class="primary" onclick="toggleHelp()">Close</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ─────────────────────────────────────────────────
+const API = "http://localhost:5000";
+const GRID = 3;
+
+// ─── STATE ─────────────────────────────────────────────────
+let state = null;
+let hovered = null;
+let locked = false;
+let hintMove = null;
+let hintsLeft = 2;
+
+// ─── BACKEND CALLS ─────────────────────────────────────────
+
+async function newGameBackend() {
+  const res = await fetch(`${API}/new-game`, { method: "POST" });
+  state = await res.json();
+}
+
+async function sendPlayerMove(move) {
+  const res = await fetch(`${API}/player-move`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      type: move[0],
+      row: move[1],
+      col: move[2]
+    })
+  });
+
+  state = await res.json();
+}
+
+async function getAIMove() {
+  const res = await fetch(`${API}/ai-move`, { method: "POST" });
+  const data = await res.json();
+  state = data.state;
+}
+
+// ─── RENDERING (UNCHANGED DESIGN) ───────────────────────────
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+
+const DOT_R = 5;
+const GAP = 90;
+const PAD = 30;
+const TOTAL = PAD * 2 + GRID * GAP;
+
+canvas.width = TOTAL;
+canvas.height = TOTAL;
+canvas.style.width = '100%';
+canvas.style.height = 'auto';
+
+const C = {
+  bg:'#17171a', dot:'#e0e0e0', lineIdle:'#2e2e36',
+  lineHov:'#c8f04a55', human:'#4af0c8', ai:'#f04a7a',
+  accent:'#c8f04a', boxH:'#4af0c820', boxA:'#f04a7a20'
+};
+
+function dotPos(r,c){ return [PAD + c*GAP, PAD + r*GAP]; }
+
+function drawBoard(){
+  if(!state) return;
+  ctx.clearRect(0,0,TOTAL,TOTAL);
+
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const owner = state.boxes[r][c];
+      if(owner){
+        const [x,y]=dotPos(r,c);
+        ctx.fillStyle = owner==='H'?C.boxH:C.boxA;
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(x,y,GAP,GAP);
+        ctx.restore();
+
+        ctx.fillStyle = owner==='H'?C.human:C.ai;
+        ctx.font=`bold ${GAP*0.28}px 'Space Mono'`;
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(owner==='H'?'YOU':'AI',x+GAP/2,y+GAP/2);
+      }
+    }
+  }
+
+  for(let r=0;r<=GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const [x,y]=dotPos(r,c);
+      const placed = state.h_lines[r][c];
+      const hov = hovered && hovered[0]==='h' && hovered[1]===r && hovered[2]===c;
+      const isHint = hintMove && hintMove[0]==='h' && hintMove[1]===r && hintMove[2]===c;
+
+      ctx.beginPath();
+      ctx.moveTo(x+DOT_R,y);
+      ctx.lineTo(x+GAP-DOT_R,y);
+
+      if(isHint){
+        ctx.strokeStyle = "#00FFFF";
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now()/200);
+      } else {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = placed ? C.accent : (hov ? C.lineHov : C.lineIdle);
+      }
+      ctx.lineWidth = placed ? 3 : 1.5;
+      ctx.stroke();
+    }
+  }
+
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<=GRID;c++){
+      const [x,y]=dotPos(r,c);
+      const placed = state.v_lines[r][c];
+      const hov = hovered && hovered[0]==='v' && hovered[1]===r && hovered[2]===c;
+      const isHint = hintMove && hintMove[0]==='v' && hintMove[1]===r && hintMove[2]===c;
+
+      ctx.beginPath();
+      ctx.moveTo(x,y+DOT_R);
+      ctx.lineTo(x,y+GAP-DOT_R);
+
+      if(isHint){
+        ctx.strokeStyle = "#00FFFF";
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now()/200);
+      } else {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = placed ? C.accent : (hov ? C.lineHov : C.lineIdle);
+      }
+      ctx.lineWidth = placed ? 3 : 1.5;
+      ctx.stroke();
+    }
+  }
+
+  for(let r=0;r<=GRID;r++){
+    for(let c=0;c<=GRID;c++){
+      const [x,y]=dotPos(r,c);
+      ctx.beginPath();
+      ctx.arc(x,y,DOT_R,0,Math.PI*2);
+      ctx.fillStyle=C.dot;
+      ctx.fill();
+    }
+  }
+}
+
+// ─── UI ─────────────────────────────────────────────────────
+
+function updateUI(){
+  document.getElementById('score-h').textContent = state.scores.H;
+  document.getElementById('score-a').textContent = state.scores.A;
+
+  const isHuman = state.turn==='H';
+  document.getElementById('turn-name').textContent = isHuman?'You':'AI';
+  document.getElementById('block-h').classList.toggle('active',isHuman);
+  document.getElementById('block-a').classList.toggle('active',!isHuman);
+}
+
+function setStatus(msg,highlight=false){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className='status'+(highlight?' highlight':'');
+}
+
+// ─── AI ─────────────────────────────────────────────────────
+
+async function doAI(){
+  locked=true;
+  setStatus("AI is thinking…");
+
+  await getAIMove();
+
+  drawBoard();
+  updateUI();
+  if(isTerminal(state)){
+    locked = true;
+    hintMove = null;
+    showResult();
+    return;
+  }
+
+  if(state.turn==='A'){
+    setTimeout(doAI,600);
+  } else {
+    setStatus("Your turn");
+    locked=false;
+  }
+}
+
+async function getHint(){
+  if(hintsLeft <= 0){
+    setStatus("No hints left");
+    return;
+  }
+
+  const res = await fetch("http://localhost:5000/hint", {
+    method: "POST"
+  });
+
+  const data = await res.json();
+
+  if(data.error){
+    setStatus(data.error);
+    return;
+  }
+
+  hintMove = data.move;
+  hintsLeft = data.hints_left;
+  document.getElementById("hint-btn").textContent = `Hint (${hintsLeft})`;
+
+  setStatus(`Hint used (${hintsLeft} left)`);
+
+  drawBoard();
+}
+
+function isTerminal(state){
+  for(let r=0;r<=3;r++){
+    for(let c=0;c<3;c++){
+      if(!state.h_lines[r][c]) return false;
+    }
+  }
+  for(let r=0;r<3;r++){
+    for(let c=0;c<=3;c++){
+      if(!state.v_lines[r][c]) return false;
+    }
+  }
+  return true;
+}
+
+function showResult(){
+  const overlay = document.getElementById("overlay");
+  const title = document.getElementById("res-title");
+  const body = document.getElementById("res-body");
+  const emoji = document.getElementById("res-emoji");
+
+  const h = state.scores.H;
+  const a = state.scores.A;
+
+  if(h > a){
+    title.textContent = "YOU WIN";
+    emoji.textContent = "🎉";
+  } else if(a > h){
+    title.textContent = "AI WINS";
+    emoji.textContent = "🤖";
+  } else {
+    title.textContent = "DRAW";
+    emoji.textContent = "⚖️";
+  }
+
+  body.textContent = `You: ${h} | AI: ${a}`;
+
+  overlay.classList.add("show");
+}
+
+function closeOverlay(){
+  document.getElementById("overlay").classList.remove("show");
+}
+
+function toggleHelp(){
+  const overlay = document.getElementById("help-overlay");
+  overlay.classList.toggle("show");
+}
+// ─── HIT TEST ───────────────────────────────────────────────
+
+function getCanvasPos(e){
+  const rect=canvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(TOTAL/rect.width);
+  const y=(e.clientY-rect.top)*(TOTAL/rect.height);
+  return [x,y];
+}
+
+function hitTest(px,py){
+  const TH=12;
+
+  for(let r=0;r<=GRID;r++){
+    for(let c=0;c<GRID;c++){
+      if(state.h_lines[r][c]) continue;
+      const [x,y]=dotPos(r,c);
+      if(Math.abs(py-y)<TH && px>x && px<x+GAP) return ['h',r,c];
+    }
+  }
+
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<=GRID;c++){
+      if(state.v_lines[r][c]) continue;
+      const [x,y]=dotPos(r,c);
+      if(Math.abs(px-x)<TH && py>y && py<y+GAP) return ['v',r,c];
+    }
+  }
+
+  return null;
+}
+
+// ─── EVENTS ─────────────────────────────────────────────────
+
+canvas.addEventListener('mousemove', e=>{
+  if(locked||state.turn!=='H') return;
+  const [x,y]=getCanvasPos(e);
+  hovered=hitTest(x,y);
+  drawBoard();
+});
+
+canvas.addEventListener('click', async e=>{
+  if(locked||state.turn!=='H') return;
+
+  const [x,y]=getCanvasPos(e);
+  const move=hitTest(x,y);
+  if(!move) return;
+
+  await sendPlayerMove(move);
+  if(isTerminal(state)){
+    locked = true;
+    hintMove = null;
+    showResult();
+    return;
+  }
+  hintMove = null;
+
+  drawBoard();
+  updateUI();
+
+  if(state.turn==='A'){
+    setTimeout(doAI,300);
+  }
+});
+
+// ─── RESET ──────────────────────────────────────────────────
+
+async function resetGame(){
+  const difficulty = document.getElementById("difficulty").value;
+
+  const res = await fetch("http://localhost:5000/new-game", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ difficulty })
+  });
+
+  state = await res.json();
+
+  locked = false;
+  hovered = null;
+  drawBoard();
+  updateUI();
+  setStatus("Click a line to place it");
+
+  hintsLeft = 2;
+  hintMove = null;
+  document.getElementById("hint-btn").textContent = `Hint (${hintsLeft})`;
+}
+
+// ─── INIT ───────────────────────────────────────────────────
+
+(async ()=>{
+  await resetGame(); 
+})();
+</script>
+</body>
+</html>
